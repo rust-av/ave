@@ -1,0 +1,12 @@
+[package]
+name = "avc"
+version = "0.1.0"
+authors = ["Luca Barbato <lu_zero@gentoo.org>"]
+
+[features]
+default = []
+
+[dependencies]
+structopt = "0.2"
+matroska = { git = "https://github.com/rust-av/matroska" }
+
