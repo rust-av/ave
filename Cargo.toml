@@ -1,5 +1,5 @@
 [package]
-name = "avc"
+name = "ave"
 version = "0.1.0"
 authors = ["Luca Barbato <lu_zero@gentoo.org>"]
 
@@ -8,5 +8,15 @@ default = []
 
 [dependencies]
 structopt = "0.2"
-matroska = { git = "https://github.com/rust-av/matroska" }
+log = "0.4"
+pretty_env_logger = "0.2"
 
+av-data = { git = "https://github.com/rust-av/rust-av" }
+av-codec = { git = "https://github.com/rust-av/rust-av" }
+av-format = { git = "https://github.com/rust-av/rust-av" }
+
+libvpx = { git = "https://github.com/rust-av/vpx-rs", features=["codec-trait"] }
+libopus = { git = "https://github.com/rust-av/opus-rs", features=["codec-trait"] }
+av-vorbis = { git = "https://github.com/rust-av/av-vorbis" }
+
+matroska = { git = "https://github.com/rust-av/matroska" }
