@@ -19,6 +19,7 @@ extern crate av_vorbis as vorbis;
 // Command line interface
 use std::path::{PathBuf, Path};
 use std::fs::File;
+use std::sync::Arc;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -41,6 +42,7 @@ extern crate pretty_env_logger;
 extern crate log;
 
 use data::frame::ArcFrame;
+use data::packet::Packet;
 use codec::common::CodecList;
 
 use codec::decoder::Context as DecoderCtx;
@@ -48,13 +50,16 @@ use codec::decoder::Codecs as Decoders;
 
 use format::demuxer::Context as DemuxerCtx;
 use format::demuxer::Event;
+use format::muxer::Context as MuxerCtx;
 use format::buffer::AccReader;
+use format::common::GlobalInfo;
 
 use vpx::decoder::VP9_DESCR as VP9_DEC;
 use opus::decoder::OPUS_DESCR as OPUS_DEC;
 use vorbis::decoder::VORBIS_DESCR as VORBIS_DEC;
 
 use matroska::demuxer::MkvDemuxer;
+use matroska::muxer::MkvMuxer;
 
 use std::collections::HashMap;
 
@@ -136,6 +141,32 @@ impl Source {
     }
 }
 
+struct Sink {
+  muxer: MuxerCtx,
+}
+
+impl Sink {
+  fn from_path<P: AsRef<Path>>(path: P, info: GlobalInfo) -> Self {
+    let mux = Box::new(MkvMuxer::webm());
+    let output = File::create(path).unwrap();
+    let mut muxer = MuxerCtx::new(mux, Box::new(output));
+    muxer.set_global_info(info).unwrap();
+    muxer.write_header().unwrap();
+
+    Sink {
+      muxer
+    }
+  }
+
+  fn write_packet(&mut self, packet: Arc<Packet>) -> format::error::Result<usize> {
+    self.muxer.write_packet(packet)
+  }
+
+  fn write_trailer(&mut self) -> format::error::Result<usize> {
+    self.muxer.write_trailer()
+  }
+}
+
 use log::LevelFilter;
 use pretty_env_logger::formatted_builder;
 
@@ -149,6 +180,13 @@ fn main() {
     let opt = Opt::from_args();
 
     let mut src = Source::from_path(&opt.input);
+
+    let dummy_info = GlobalInfo {
+      duration: None,
+      timebase: None,
+      streams:  Vec::new(),
+    };
+    let mut sink = Sink::from_path(&opt.output, dummy_info);
 
     let th_src = thread::spawn(move || {
         while let Ok(res) = src.decode_one() {
