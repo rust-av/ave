@@ -55,6 +55,7 @@ use std::sync::mpsc;
 use std::collections::HashMap;
 
 use data::frame::ArcFrame;
+use data::packet::ArcPacket;
 
 use codec::encoder::Context as EncoderCtx;
 use codec::common::CodecList;
@@ -105,6 +106,20 @@ fn main() {
 
     info!("Encoders set {:?}", info);
 
+    struct EncChannel {
+        output: mpsc::Sender<ArcPacket>,
+        input: mpsc::Receiver<ArcFrame>,
+    }
+
+    let chans: Vec<(mpsc::Sender<ArcFrame>, EncChannel, mpsc::Receiver<ArcPacket>)> = encoders.iter().map(|enc| {
+        // decoder -> encoder
+        let (send_frame, recv_frame) = mpsc::channel::<ArcFrame>();
+        // encoder -> muxer
+        let (send_packet, recv_packet) = mpsc::channel::<ArcPacket>();
+
+        (send_frame, EncChannel { input: recv_frame, output: send_packet }, recv_packet)
+    }).collect();
+
     let mut sink = Sink::from_path(&opt.output, info);
 
     let th_src = thread::spawn(move || {
@@ -112,6 +127,11 @@ fn main() {
             info!("Decoded {:#?}", res);
         }
     });
+/*
+    let th_enc = thread::spawn(move || {
+        while let Ok(res) src.
+    });
+*/
 
     let _ = th_src.join();
 }
