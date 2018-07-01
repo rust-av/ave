@@ -21,7 +21,7 @@ use std::collections::HashMap;
 /// to as many Decoders as the Streams
 pub struct Source {
     decoders: HashMap<usize, DecoderCtx>,
-    demuxer: DemuxerCtx,
+    pub demuxer: DemuxerCtx,
 }
 
 impl Source {

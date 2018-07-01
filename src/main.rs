@@ -50,7 +50,20 @@ use log::LevelFilter;
 use pretty_env_logger::formatted_builder;
 
 use std::thread;
-// use std::sync::mpsc;
+use std::sync::mpsc;
+
+use std::collections::HashMap;
+
+use data::frame::ArcFrame;
+
+use codec::encoder::Context as EncoderCtx;
+use codec::common::CodecList;
+use codec::encoder;
+
+use format::stream::Stream;
+
+use vpx::encoder::VP9_DESCR;
+use opus::encoder::OPUS_DESCR;
 
 fn main() {
     let mut builder = formatted_builder().unwrap();
@@ -60,12 +73,39 @@ fn main() {
 
     let mut src = Source::from_path(&opt.input);
 
-    let dummy_info = GlobalInfo {
-        duration: None,
-        timebase: None,
+    let encoder_list = encoder::Codecs::from_list(&[VP9_DESCR, OPUS_DESCR]);
+
+    let mut info = GlobalInfo {
+        duration: src.demuxer.info.duration.clone(),
+        timebase: src.demuxer.info.timebase.clone(),
         streams: Vec::new(),
     };
-    let mut sink = Sink::from_path(&opt.output, dummy_info);
+
+    info!("{:?}", src.demuxer.info);
+
+    let encoders: Vec<EncoderCtx> = src.demuxer.info.streams.iter().scan(&mut info, |info, st| {
+        // TODO: stream selection and mapping
+        if let Some(ref codec_id) = st.params.codec_id {
+            if let Some(mut ctx) = EncoderCtx::by_name(&encoder_list, codec_id) {
+                // Derive a default setup from the input codec parameters
+                debug!("Setting up {} encoder", codec_id);
+                ctx.set_params(&st.params).unwrap();
+                // Overrides here
+                let _ = ctx.set_option("timebase", (*st.timebase.numer(), *st.timebase.denom()));
+                ctx.configure().unwrap();
+                info.add_stream(Stream::from_params(&ctx.get_params().unwrap(), st.timebase.clone()));
+                Some(ctx)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }).collect();
+
+    info!("Encoders set {:?}", info);
+
+    let mut sink = Sink::from_path(&opt.output, info);
 
     let th_src = thread::spawn(move || {
         while let Ok(res) = src.decode_one() {

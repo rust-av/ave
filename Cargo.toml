@@ -16,7 +16,8 @@ av-codec = { git = "https://github.com/rust-av/rust-av" }
 av-format = { git = "https://github.com/rust-av/rust-av" }
 
 libvpx = { git = "https://github.com/rust-av/vpx-rs", features=["codec-trait"] }
-libopus = { git = "https://github.com/rust-av/opus-rs", features=["codec-trait"] }
+# libopus = { git = "https://github.com/rust-av/opus-rs", features=["codec-trait"] }
+libopus = { path = "../opus-rs", features=["codec-trait"] }
 av-vorbis = { git = "https://github.com/rust-av/av-vorbis" }
 
 matroska = { git = "https://github.com/rust-av/matroska" }
