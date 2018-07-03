@@ -17,10 +17,12 @@ use vpx::decoder::VP9_DESCR as VP9_DEC;
 use matroska::demuxer::MkvDemuxer;
 use std::collections::HashMap;
 
+use channel::Sender;
+
 /// The source binds a single Demuxer
 /// to as many Decoders as the Streams
 pub struct Source {
-    decoders: HashMap<usize, DecoderCtx>,
+    pub decoders: HashMap<usize, (DecoderCtx, Option<Sender<ArcFrame>>)>,
     pub demuxer: DemuxerCtx,
 }
 
@@ -39,7 +41,7 @@ impl Source {
             .read_headers()
             .expect("Cannot parse the format headers");
 
-        let mut decoders: HashMap<usize, DecoderCtx> =
+        let mut decoders: HashMap<usize, (DecoderCtx, Option<Sender<ArcFrame>>)> =
             HashMap::with_capacity(demuxer.info.streams.len());
 
         for st in &demuxer.info.streams {
@@ -49,7 +51,7 @@ impl Source {
                         ctx.set_extradata(extradata);
                     }
                     ctx.configure().expect("Codec configure failed");
-                    decoders.insert(st.index, ctx);
+                    decoders.insert(st.index, (ctx, None));
                     info!(
                         "Registering {} for stream {} (id {})",
                         codec_id, st.index, st.id
@@ -61,7 +63,7 @@ impl Source {
         Source { decoders, demuxer }
     }
 
-    pub fn decode_one(&mut self) -> Result<Option<ArcFrame>, String> {
+    pub fn decode_one(&mut self) -> Result<(), String> {
         let ref mut c = self.demuxer;
         let ref mut decs = self.decoders;
         match c.read_event() {
@@ -72,15 +74,18 @@ impl Source {
                         if let Some(dec) = decs.get_mut(&idx) {
                             debug!("Decoding packet at index {}", pkt.stream_index);
                             // TODO report error
-                            dec.send_packet(&pkt).unwrap();
-                            Ok(dec.receive_frame().ok())
+                            dec.0.send_packet(&pkt).unwrap();
+                            if let Some(frame) = dec.0.receive_frame().ok() {
+                                dec.1.as_mut().unwrap().send(frame);
+                            }
+                            Ok(())
                         } else {
                             debug!("Skipping packet at index {}", pkt.stream_index);
-                            Ok(None)
+                            Ok(())
                         }
                     } else {
                         warn!("Spurious packet");
-                        Ok(None)
+                        Ok(())
                     }
                 }
                 _ => {

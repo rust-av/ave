@@ -25,11 +25,11 @@ impl Sink {
         Sink { muxer }
     }
 
-    fn write_packet(&mut self, packet: Arc<Packet>) -> format::error::Result<usize> {
+    pub fn write_packet(&mut self, packet: Arc<Packet>) -> format::error::Result<usize> {
         self.muxer.write_packet(packet)
     }
 
-    fn write_trailer(&mut self) -> format::error::Result<usize> {
+    pub fn write_trailer(&mut self) -> format::error::Result<usize> {
         self.muxer.write_trailer()
     }
 }
