@@ -88,6 +88,9 @@ impl Source {
                         Ok(())
                     }
                 }
+                Event::Eof => {
+                    Err("EOF".to_owned())
+                }
                 _ => {
                     error!("Unsupported event {:?}", event);
                     unimplemented!();
