@@ -88,55 +88,64 @@ fn main() {
     info!("{:?}", src.demuxer.info);
 
     // encoders -> muxer
-    let (send_packet, recv_packet) = ch::unbounded::<ArcPacket>();
-
-    let encoders: Vec<thread::JoinHandle<_>> = {
+    let (encoders, recv_packet): (Vec<thread::JoinHandle<_>>, ch::Receiver<ArcPacket>) = {
         let decoders = &mut src.decoders;
         let demuxer = &src.demuxer;
+        let (send_packet, recv_packet) = ch::unbounded::<ArcPacket>();
 
-        decoders.iter_mut().scan(&mut info, |info, dec| {
-            println!("index {}", dec.0);
-            let st = &demuxer.info.streams[*dec.0];
-            // TODO: stream selection and mapping
-            if let Some(ref codec_id) = st.params.codec_id {
-                if let Some(mut ctx) = EncoderCtx::by_name(&encoder_list, codec_id) {
-                    // Derive a default setup from the input codec parameters
-                    debug!("Setting up {} encoder", codec_id);
-                    ctx.set_params(&st.params).unwrap();
-                    // Overrides here
-                    let _ = ctx.set_option("timebase", (*st.timebase.numer(), *st.timebase.denom()));
-                    ctx.configure().unwrap();
-                    let idx = info.add_stream(Stream::from_params(&ctx.get_params().unwrap(), st.timebase.clone()));
-                    // decoder -> encoder
-                    let (send_frame, recv_frame) = ch::unbounded::<ArcFrame>();
+        let encoders = decoders
+            .iter_mut()
+            .scan(&mut info, |info, dec| {
+                println!("index {}", dec.0);
+                let st = &demuxer.info.streams[*dec.0];
+                // TODO: stream selection and mapping
+                if let Some(ref codec_id) = st.params.codec_id {
+                    if let Some(mut ctx) = EncoderCtx::by_name(&encoder_list, codec_id) {
+                        // Derive a default setup from the input codec parameters
+                        debug!("Setting up {} encoder", codec_id);
+                        ctx.set_params(&st.params).unwrap();
+                        // Overrides here
+                        let _ = ctx
+                            .set_option("timebase", (*st.timebase.numer(), *st.timebase.denom()));
+                        ctx.configure().unwrap();
+                        let idx = info.add_stream(Stream::from_params(
+                            &ctx.get_params().unwrap(),
+                            st.timebase.clone(),
+                        ));
+                        // decoder -> encoder
+                        let (send_frame, recv_frame) = ch::unbounded::<ArcFrame>();
 
-                    (dec.1).1 = Some(send_frame);
-                    let send_packet = send_packet.clone();
-                    let b = thread::Builder::new().name(format!("encoder-{}", codec_id));
-                    let th = b.spawn(move || {
-                        debug!("Encoding thread");
-                        while let Some(frame) = recv_frame.recv() {
-                            debug!("Encoding {:?}", frame);
-                            let _ = ctx.send_frame(&frame);
+                        (dec.1).1 = Some(send_frame);
+                        let send_packet = send_packet.clone();
+                        let b = thread::Builder::new().name(format!("encoder-{}", codec_id));
+                        let th =
+                            b.spawn(move || {
+                                debug!("Encoding thread");
+                                while let Some(frame) = recv_frame.recv() {
+                                    debug!("Encoding {:?}", frame);
+                                    let _ = ctx.send_frame(&frame);
 
-                            debug!("Encoded?");
-                            if let Some(mut pkt) = ctx.receive_packet().ok() {
-                                pkt.stream_index = idx as isize;
-                                debug!("Encoded {:?}", pkt);
+                                    debug!("Encoded?");
+                                    if let Some(mut pkt) = ctx.receive_packet().ok() {
+                                        pkt.stream_index = idx as isize;
+                                        debug!("Encoded {:?}", pkt);
 
-                                send_packet.send(Arc::new(pkt));
-                            }
-                        }
-                    }).unwrap();
-                    debug!("Done");
-                    Some(th)
+                                        send_packet.send(Arc::new(pkt));
+                                    }
+                                }
+                            }).unwrap();
+                        debug!("Done");
+                        Some(th)
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
-            } else {
-                None
-            }
-        }).collect()
+            })
+            .collect();
+
+        (encoders, recv_packet)
     };
 
     info!("Encoders set {:?}", info);
@@ -149,11 +158,13 @@ fn main() {
     }).unwrap();
 
     let b = thread::Builder::new().name("mux".to_owned());
-    let th_mux = b.spawn(move || {
-        while let Some(pkt) = recv_packet.recv() {
-            let _ = sink.write_packet(pkt);
-        }
-    }).unwrap();
+    let th_mux =
+        b.spawn(move || {
+            while let Some(pkt) = recv_packet.recv() {
+                let _ = sink.write_packet(pkt);
+            }
+            let _ = sink.write_trailer();
+        }).unwrap();
 
     let _ = th_src.join();
     let _ = th_mux.join();
