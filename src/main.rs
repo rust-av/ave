@@ -123,16 +123,35 @@ fn main() {
                                 debug!("Encoding thread");
                                 while let Some(frame) = recv_frame.recv() {
                                     debug!("Encoding {:?}", frame);
-                                    let _ = ctx.send_frame(&frame);
+                                    let _ = ctx.send_frame(&frame).map_err(|e| {
+                                      error!("ctx.send_frame: {:?}", e);
+                                      e
+                                    });
 
-                                    debug!("Encoded?");
-                                    if let Some(mut pkt) = ctx.receive_packet().ok() {
+                                    while let Some(mut pkt) = ctx.receive_packet().map_err(|e| {
+                                      error!("ctx.receive_packet: {:?}", e);
+                                      e
+                                    }).ok() {
                                         pkt.stream_index = idx as isize;
                                         debug!("Encoded {:?}", pkt);
 
                                         send_packet.send(Arc::new(pkt));
                                     }
                                 }
+
+                                ctx.flush().map_err(|e| {
+                                  error!("ctx flush: {:?}", e);
+                                  e
+                                });
+                                while let Some(mut pkt) = ctx.receive_packet().map_err(|e| {
+                                  error!("flush ctx.receive_packet: {:?}", e);
+                                  e
+                                }).ok() {
+                                    pkt.stream_index = idx as isize;
+
+                                    send_packet.send(Arc::new(pkt));
+                                }
+
                             }).unwrap();
                         debug!("Done");
                         Some(th)
