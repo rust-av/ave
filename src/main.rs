@@ -129,8 +129,14 @@ fn main() {
                                     });
 
                                     while let Some(mut pkt) = ctx.receive_packet().map_err(|e| {
-                                      error!("ctx.receive_packet: {:?}", e);
-                                      e
+                                        use codec::error::*;
+                                        match e {
+                                            Error::MoreDataNeeded => (),
+                                            _ => {
+                                                error!("flush ctx.receive_packet: {:?}", e);
+                                            },
+                                        }
+                                        e
                                     }).ok() {
                                         pkt.stream_index = idx as isize;
                                         debug!("Encoded {:?}", pkt);
@@ -144,8 +150,14 @@ fn main() {
                                   e
                                 });
                                 while let Some(mut pkt) = ctx.receive_packet().map_err(|e| {
-                                  error!("flush ctx.receive_packet: {:?}", e);
-                                  e
+                                    use codec::error::*;
+                                    match e {
+                                        Error::MoreDataNeeded => (),
+                                        _ => {
+                                            error!("flush ctx.receive_packet: {:?}", e);
+                                        },
+                                    }
+                                    e
                                 }).ok() {
                                     pkt.stream_index = idx as isize;
 
