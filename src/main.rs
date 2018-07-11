@@ -51,23 +51,22 @@ use source::*;
 use log::LevelFilter;
 use pretty_env_logger::formatted_builder;
 
-use std::thread;
 use std::sync::Arc;
+use std::thread;
 
 use data::frame::ArcFrame;
 use data::packet::ArcPacket;
 
-use codec::encoder::Context as EncoderCtx;
 use codec::common::CodecList;
 use codec::encoder;
+use codec::encoder::Context as EncoderCtx;
 
 use format::stream::Stream;
 
-use vpx::encoder::VP9_DESCR;
 use opus::encoder::OPUS_DESCR;
+use vpx::encoder::VP9_DESCR;
 
 use channel as ch;
-
 
 fn main() {
     let mut builder = formatted_builder().unwrap();
@@ -124,20 +123,24 @@ fn main() {
                                 while let Some(frame) = recv_frame.recv() {
                                     debug!("Encoding {:?}", frame);
                                     let _ = ctx.send_frame(&frame).map_err(|e| {
-                                      error!("ctx.send_frame: {:?}", e);
-                                      e
+                                        error!("ctx.send_frame: {:?}", e);
+                                        e
                                     });
 
-                                    while let Some(mut pkt) = ctx.receive_packet().map_err(|e| {
-                                        use codec::error::*;
-                                        match e {
-                                            Error::MoreDataNeeded => (),
-                                            _ => {
-                                                error!("flush ctx.receive_packet: {:?}", e);
-                                            },
-                                        }
-                                        e
-                                    }).ok() {
+                                    while let Some(mut pkt) = ctx
+                                        .receive_packet()
+                                        .map_err(|e| {
+                                            use codec::error::*;
+                                            match e {
+                                                Error::MoreDataNeeded => (),
+                                                _ => {
+                                                    error!("flush ctx.receive_packet: {:?}", e);
+                                                }
+                                            }
+                                            e
+                                        })
+                                        .ok()
+                                    {
                                         pkt.stream_index = idx as isize;
                                         debug!("Encoded {:?}", pkt);
 
@@ -146,24 +149,27 @@ fn main() {
                                 }
 
                                 ctx.flush().map_err(|e| {
-                                  error!("ctx flush: {:?}", e);
-                                  e
-                                });
-                                while let Some(mut pkt) = ctx.receive_packet().map_err(|e| {
-                                    use codec::error::*;
-                                    match e {
-                                        Error::MoreDataNeeded => (),
-                                        _ => {
-                                            error!("flush ctx.receive_packet: {:?}", e);
-                                        },
-                                    }
+                                    error!("ctx flush: {:?}", e);
                                     e
-                                }).ok() {
+                                });
+                                while let Some(mut pkt) = ctx
+                                    .receive_packet()
+                                    .map_err(|e| {
+                                        use codec::error::*;
+                                        match e {
+                                            Error::MoreDataNeeded => (),
+                                            _ => {
+                                                error!("flush ctx.receive_packet: {:?}", e);
+                                            }
+                                        }
+                                        e
+                                    })
+                                    .ok()
+                                {
                                     pkt.stream_index = idx as isize;
 
                                     send_packet.send(Arc::new(pkt));
                                 }
-
                             }).unwrap();
                         debug!("Done");
                         Some(th)
@@ -184,9 +190,9 @@ fn main() {
     let mut sink = Sink::from_path(&opt.output, info);
 
     let b = thread::Builder::new().name("decode".to_owned());
-    let th_src = b.spawn(move || {
-        while let Ok(_) = src.decode_one() {}
-    }).unwrap();
+    let th_src = b
+        .spawn(move || while let Ok(_) = src.decode_one() {})
+        .unwrap();
 
     let b = thread::Builder::new().name("mux".to_owned());
     let th_mux =
