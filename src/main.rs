@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate structopt;
 
 extern crate crossbeam_channel as channel;
@@ -15,6 +14,7 @@ extern crate matroska;
 // TODO: move those dependencies to av-codecs
 // Codecs
 extern crate av_vorbis as vorbis;
+extern crate libaom as aom;
 extern crate libopus as opus;
 extern crate libvpx as vpx;
 
@@ -48,9 +48,6 @@ mod source;
 use sink::*;
 use source::*;
 
-use log::LevelFilter;
-use pretty_env_logger::formatted_builder;
-
 use std::sync::Arc;
 use std::thread;
 
@@ -63,20 +60,20 @@ use codec::encoder::Context as EncoderCtx;
 
 use format::stream::Stream;
 
+use aom::encoder::AV1_DESCR;
 use opus::encoder::OPUS_DESCR;
 use vpx::encoder::VP9_DESCR;
 
 use channel as ch;
 
 fn main() {
-    let mut builder = formatted_builder().unwrap();
-    builder.filter_level(LevelFilter::Debug).init();
+    pretty_env_logger::init();
 
     let opt = Opt::from_args();
 
     let mut src = Source::from_path(&opt.input);
 
-    let encoder_list = encoder::Codecs::from_list(&[VP9_DESCR, OPUS_DESCR]);
+    let encoder_list = encoder::Codecs::from_list(&[VP9_DESCR, OPUS_DESCR, AV1_DESCR]);
 
     let mut info = GlobalInfo {
         duration: src.demuxer.info.duration.clone(),
@@ -84,10 +81,10 @@ fn main() {
         streams: Vec::new(),
     };
 
-    info!("{:?}", src.demuxer.info);
+    info!("{:#?}", src.demuxer.info);
 
     // encoders -> muxer
-    let (encoders, recv_packet): (Vec<thread::JoinHandle<_>>, ch::Receiver<ArcPacket>) = {
+    let (_encoders, recv_packet): (Vec<thread::JoinHandle<_>>, ch::Receiver<ArcPacket>) = {
         let decoders = &mut src.decoders;
         let demuxer = &src.demuxer;
         let (send_packet, recv_packet) = ch::unbounded::<ArcPacket>();
@@ -95,7 +92,6 @@ fn main() {
         let encoders = decoders
             .iter_mut()
             .scan(&mut info, |info, dec| {
-                println!("index {}", dec.0);
                 let st = &demuxer.info.streams[*dec.0];
                 // TODO: stream selection and mapping
                 if let Some(ref codec_id) = st.params.codec_id {
@@ -107,18 +103,23 @@ fn main() {
                         let _ = ctx
                             .set_option("timebase", (*st.timebase.numer(), *st.timebase.denom()));
                         ctx.configure().unwrap();
-                        let idx = info.add_stream(Stream::from_params(
+                        let mut stream = Stream::from_params(
                             &ctx.get_params().unwrap(),
                             st.timebase.clone(),
-                        ));
+                        );
+
+                        stream.id = st.id;
+                        stream.index = st.id as usize;
+
+                        let idx = info.add_stream(stream);
                         // decoder -> encoder
                         let (send_frame, recv_frame) = ch::unbounded::<ArcFrame>();
 
                         (dec.1).1 = Some(send_frame);
                         let send_packet = send_packet.clone();
                         let b = thread::Builder::new().name(format!("encoder-{}", codec_id));
-                        let th =
-                            b.spawn(move || {
+                        let th = b
+                            .spawn(move || {
                                 debug!("Encoding thread");
                                 while let Some(frame) = recv_frame.recv() {
                                     debug!("Encoding {:?}", frame);
@@ -148,10 +149,12 @@ fn main() {
                                     }
                                 }
 
-                                ctx.flush().map_err(|e| {
-                                    error!("ctx flush: {:?}", e);
-                                    e
-                                });
+                                ctx.flush()
+                                    .map_err(|e| {
+                                        error!("ctx flush: {:?}", e);
+                                        e
+                                    })
+                                    .unwrap();
                                 while let Some(mut pkt) = ctx
                                     .receive_packet()
                                     .map_err(|e| {
@@ -170,7 +173,8 @@ fn main() {
 
                                     send_packet.send(Arc::new(pkt));
                                 }
-                            }).unwrap();
+                            })
+                            .unwrap();
                         debug!("Done");
                         Some(th)
                     } else {
@@ -194,14 +198,16 @@ fn main() {
         .spawn(move || while let Ok(_) = src.decode_one() {})
         .unwrap();
 
+
     let b = thread::Builder::new().name("mux".to_owned());
-    let th_mux =
-        b.spawn(move || {
+    let th_mux = b
+        .spawn(move || {
             while let Some(pkt) = recv_packet.recv() {
                 let _ = sink.write_packet(pkt);
             }
             let _ = sink.write_trailer();
-        }).unwrap();
+        })
+        .unwrap();
 
     let _ = th_src.join();
     let _ = th_mux.join();

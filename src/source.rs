@@ -7,6 +7,7 @@ use data::frame::ArcFrame;
 use codec::decoder::Codecs as Decoders;
 use codec::decoder::Context as DecoderCtx;
 
+use aom::decoder::AV1_DESCR as AV1_DEC;
 use format::buffer::AccReader;
 use format::demuxer::Context as DemuxerCtx;
 use format::demuxer::Event;
@@ -32,7 +33,7 @@ impl Source {
     // - use multiple demuxers
     // - make the codec list allocation external
     pub fn from_path<P: AsRef<Path>>(path: P) -> Self {
-        let decoder_list = Decoders::from_list(&[VP9_DEC, OPUS_DEC, VORBIS_DEC]);
+        let decoder_list = Decoders::from_list(&[VP9_DEC, OPUS_DEC, VORBIS_DEC, AV1_DEC]);
 
         let r = File::open(path).unwrap();
         let ar = AccReader::with_capacity(4 * 1024, r);
