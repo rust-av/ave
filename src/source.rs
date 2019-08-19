@@ -36,7 +36,7 @@ impl Source {
         let decoder_list = Decoders::from_list(&[VP9_DEC, OPUS_DEC, VORBIS_DEC, AV1_DEC]);
 
         let r = File::open(path).unwrap();
-        let ar = AccReader::with_capacity(4 * 1024, r);
+        let ar = AccReader::new(r);
         let mut demuxer = DemuxerCtx::new(Box::new(MkvDemuxer::new()), Box::new(ar));
         demuxer
             .read_headers()
@@ -74,8 +74,7 @@ impl Source {
                         let idx = pkt.stream_index as usize;
                         if let Some(dec) = decs.get_mut(&idx) {
                             debug!("Decoding packet at index {}", pkt.stream_index);
-                            // TODO report error
-                            dec.0.send_packet(&pkt).unwrap();
+                            dec.0.send_packet(&pkt);
                             if let Some(frame) = dec.0.receive_frame().ok() {
                                 dec.1.as_mut().unwrap().send(frame);
                             }
@@ -96,7 +95,7 @@ impl Source {
                 }
             },
             Err(err) => {
-                warn!("No more events {:?}", err);
+                error!("No more events {:?}", err);
                 Err("TBD".to_owned())
             }
         }

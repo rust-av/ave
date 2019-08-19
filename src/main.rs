@@ -109,7 +109,7 @@ fn main() {
                         );
 
                         stream.id = st.id;
-                        stream.index = st.id as usize;
+                        stream.index = st.index;
 
                         let idx = info.add_stream(stream);
                         // decoder -> encoder
@@ -189,7 +189,7 @@ fn main() {
         (encoders, recv_packet)
     };
 
-    info!("Encoders set {:?}", info);
+    trace!("Encoders set {:#?}", info);
 
     let mut sink = Sink::from_path(&opt.output, info);
 
