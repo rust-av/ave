@@ -16,7 +16,7 @@ pub struct Sink {
 
 impl Sink {
     pub fn from_path<P: AsRef<Path>>(path: P, info: GlobalInfo) -> Self {
-        let mux = Box::new(MkvMuxer::webm());
+        let mux = Box::new(MkvMuxer::matroska());
         let output = File::create(path).unwrap();
         let mut muxer = MuxerCtx::new(mux, Box::new(output));
         muxer.set_global_info(info).unwrap();
