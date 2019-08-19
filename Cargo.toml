@@ -16,7 +16,7 @@ av-data = "0.1"
 av-codec = "0.1"
 av-format = "0.1"
 
-libvpx = "0.1.0"
+libvpx = { git = "https://github.com/rust-av/vpx-rs", features=["codec-trait"] }
 libopus = { git = "https://github.com/rust-av/opus-rs", features=["codec-trait"] }
 libaom = { git = "https://github.com/rust-av/aom-rs", features=["codec-trait"] }
 av-vorbis = { git = "https://github.com/rust-av/av-vorbis" }
