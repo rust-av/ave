@@ -19,6 +19,7 @@ impl Sink {
         let mux = Box::new(MkvMuxer::matroska());
         let output = File::create(path).unwrap();
         let mut muxer = MuxerCtx::new(mux, Box::new(output));
+        muxer.configure().unwrap();
         muxer.set_global_info(info).unwrap();
         muxer.write_header().unwrap();
 

@@ -18,6 +18,8 @@ extern crate libaom as aom;
 extern crate libopus as opus;
 extern crate libvpx as vpx;
 
+extern crate rav1e_av;
+
 // Command line interface
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -60,7 +62,7 @@ use codec::encoder::Context as EncoderCtx;
 
 use format::stream::Stream;
 
-use aom::encoder::AV1_DESCR;
+use rav1e_av::AV1_DESCR;
 use opus::encoder::OPUS_DESCR;
 use vpx::encoder::VP9_DESCR;
 
@@ -109,7 +111,7 @@ fn main() {
                         );
 
                         stream.id = st.id;
-                        stream.index = st.id as usize;
+                        stream.index = st.index;
 
                         let idx = info.add_stream(stream);
                         // decoder -> encoder
@@ -134,6 +136,7 @@ fn main() {
                                             use codec::error::*;
                                             match e {
                                                 Error::MoreDataNeeded => (),
+                                                Error::Unsupported(ref val) if val == "Encoded" => (),
                                                 _ => {
                                                     error!("flush ctx.receive_packet: {:?}", e);
                                                 }
@@ -161,6 +164,7 @@ fn main() {
                                         use codec::error::*;
                                         match e {
                                             Error::MoreDataNeeded => (),
+                                            Error::Unsupported(ref val) if val == "Encoded" => (),
                                             _ => {
                                                 error!("flush ctx.receive_packet: {:?}", e);
                                             }
@@ -189,7 +193,7 @@ fn main() {
         (encoders, recv_packet)
     };
 
-    info!("Encoders set {:?}", info);
+    trace!("Encoders set {:#?}", info);
 
     let mut sink = Sink::from_path(&opt.output, info);
 
