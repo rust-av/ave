@@ -8,6 +8,7 @@ use format;
 use format::common::GlobalInfo;
 use format::muxer::Context as MuxerCtx;
 
+use ivf::muxer::IvfMuxer;
 use matroska::muxer::MkvMuxer;
 
 pub struct Sink {
@@ -15,11 +16,17 @@ pub struct Sink {
 }
 
 impl Sink {
-    pub fn from_path<P: AsRef<Path>>(path: P, info: GlobalInfo) -> Self {
-        let mux = Box::new(MkvMuxer::matroska());
+    pub fn from_path(path: &Path, info: GlobalInfo) -> Self {
         let output = File::create(path).unwrap();
-        let mut muxer = MuxerCtx::new(mux, Box::new(output));
+
+        let mut muxer = match path.to_owned().extension().unwrap().to_str() {
+            Some("ivf") => MuxerCtx::new(Box::new(IvfMuxer::new()), Box::new(output)),
+            Some("webm") => MuxerCtx::new(Box::new(MkvMuxer::webm()), Box::new(output)),
+            _ => MuxerCtx::new(Box::new(MkvMuxer::matroska()), Box::new(output)),
+        };
+
         muxer.set_global_info(info).unwrap();
+        muxer.configure().unwrap();
         muxer.write_header().unwrap();
 
         Sink { muxer }
