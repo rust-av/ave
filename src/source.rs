@@ -15,6 +15,7 @@ use opus::decoder::OPUS_DESCR as OPUS_DEC;
 use vorbis::decoder::VORBIS_DESCR as VORBIS_DEC;
 use vpx::decoder::VP9_DESCR as VP9_DEC;
 
+use ivf::demuxer::IvfDemuxer;
 use matroska::demuxer::MkvDemuxer;
 use std::collections::HashMap;
 
@@ -30,14 +31,17 @@ pub struct Source {
 impl Source {
     /// Creates a source from a path
     // TODO:
-    // - use multiple demuxers
     // - make the codec list allocation external
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Self {
+    pub fn from_path(path: &Path) -> Self {
         let decoder_list = Decoders::from_list(&[VP9_DEC, OPUS_DEC, VORBIS_DEC, AV1_DEC]);
-
         let r = File::open(path).unwrap();
-        let ar = AccReader::with_capacity(4 * 1024, r);
-        let mut demuxer = DemuxerCtx::new(Box::new(MkvDemuxer::new()), Box::new(ar));
+        let ar = AccReader::new(r);
+
+        let mut demuxer = match path.to_owned().extension().unwrap().to_str() {
+            Some("ivf") => DemuxerCtx::new(Box::new(IvfDemuxer::new()), Box::new(ar)),
+            _ => DemuxerCtx::new(Box::new(MkvDemuxer::new()), Box::new(ar)),
+        };
+
         demuxer
             .read_headers()
             .expect("Cannot parse the format headers");

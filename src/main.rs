@@ -9,6 +9,7 @@ extern crate av_format as format;
 
 // TODO: move those dependencies to av-formats
 // Demuxers
+extern crate ivf;
 extern crate matroska;
 
 // TODO: move those dependencies to av-codecs
