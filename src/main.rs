@@ -122,7 +122,7 @@ fn main() {
                         let th = b
                             .spawn(move || {
                                 debug!("Encoding thread");
-                                while let Some(frame) = recv_frame.recv() {
+                                while let Ok(frame) = recv_frame.recv() {
                                     debug!("Encoding {:?}", frame);
                                     let _ = ctx.send_frame(&frame).map_err(|e| {
                                         error!("ctx.send_frame: {:?}", e);
@@ -146,7 +146,7 @@ fn main() {
                                         pkt.stream_index = idx as isize;
                                         debug!("Encoded {:?}", pkt);
 
-                                        send_packet.send(Arc::new(pkt));
+                                        send_packet.send(Arc::new(pkt)).unwrap();
                                     }
                                 }
 
@@ -172,7 +172,7 @@ fn main() {
                                 {
                                     pkt.stream_index = idx as isize;
 
-                                    send_packet.send(Arc::new(pkt));
+                                    send_packet.send(Arc::new(pkt)).unwrap();
                                 }
                             })
                             .unwrap();
@@ -203,7 +203,7 @@ fn main() {
     let b = thread::Builder::new().name("mux".to_owned());
     let th_mux = b
         .spawn(move || {
-            while let Some(pkt) = recv_packet.recv() {
+            while let Ok(pkt) = recv_packet.recv() {
                 let _ = sink.write_packet(pkt);
             }
             let _ = sink.write_trailer();

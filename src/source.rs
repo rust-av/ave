@@ -81,7 +81,7 @@ impl Source {
                             // TODO report error
                             dec.0.send_packet(&pkt).unwrap();
                             if let Some(frame) = dec.0.receive_frame().ok() {
-                                dec.1.as_mut().unwrap().send(frame);
+                                dec.1.as_mut().unwrap().send(frame).unwrap();
                             }
                             Ok(())
                         } else {
