@@ -14,7 +14,7 @@ crossbeam-channel = "0.3"
 
 av-data = "0.1"
 av-codec = "0.1"
-av-format = "0.1"
+av-format = "0.2"
 
 libvpx = { git = "https://github.com/rust-av/vpx-rs", features=["codec-trait"] }
 libopus = { git = "https://github.com/rust-av/opus-rs", features=["codec-trait"] }
